@@ -1,1 +1,120 @@
+import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
+part 'main.g.dart'; // Hive code generation
+
+@HiveType(typeId: 0)
+class SentenceModel extends HiveObject {
+  @HiveField(0)
+  String wrongSentence;
+
+  @HiveField(1)
+  String correctSentence;
+
+  SentenceModel({required this.wrongSentence, required this.correctSentence});
+}
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
+  Hive.registerAdapter(SentenceModelAdapter());
+  await Hive.openBox<SentenceModel>('sentencesBox');
+  runApp(const HindiLearningApp());
+}
+
+class HindiLearningApp extends StatelessWidget {
+  const HindiLearningApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Hindi Learning AI',
+      theme: ThemeData(primarySwatch: Colors.teal),
+      home: const HomeScreen(),
+    );
+  }
+}
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final _wrongController = TextEditingController();
+  final _correctController = TextEditingController();
+
+  Future<void> _saveSentence() async {
+    if (_wrongController.text.isNotEmpty && _correctController.text.isNotEmpty) {
+      final box = Hive.box<SentenceModel>('sentencesBox');
+      final sentence = SentenceModel(
+        wrongSentence: _wrongController.text,
+        correctSentence: _correctController.text,
+      );
+      await box.add(sentence);
+      _wrongController.clear();
+      _correctController.clear();
+      setState(() {});
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final box = Hive.box<SentenceModel>('sentencesBox');
+
+    return Scaffold(
+      appBar: AppBar(title: const Text("Hindi Learning AI")),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              children: [
+                TextField(
+                  controller: _wrongController,
+                  decoration: const InputDecoration(labelText: "ভুল বাক্য"),
+                ),
+                TextField(
+                  controller: _correctController,
+                  decoration: const InputDecoration(labelText: "সঠিক বাক্য"),
+                ),
+                const SizedBox(height: 10),
+                ElevatedButton(
+                  onPressed: _saveSentence,
+                  child: const Text("সেভ করুন"),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ValueListenableBuilder(
+              valueListenable: box.listenable(),
+              builder: (context, Box<SentenceModel> box, _) {
+                if (box.values.isEmpty) {
+                  return const Center(child: Text("কোনো বাক্য নেই"));
+                }
+                return ListView.builder(
+                  itemCount: box.values.length,
+                  itemBuilder: (context, index) {
+                    final sentence = box.getAt(index);
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                          vertical: 5, horizontal: 10),
+                      child: ListTile(
+                        title: Text("❌ ${sentence?.wrongSentence}"),
+                        subtitle: Text("✅ ${sentence?.correctSentence}"),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
